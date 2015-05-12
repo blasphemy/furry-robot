@@ -3,8 +3,8 @@ package main
 import (
 	"bufio"
 	"errors"
-	"github.com/blasphemy/puush/models"
-	"github.com/blasphemy/puush/rethinkdbutils"
+	"github.com/blasphemy/furry-robot/models"
+	"github.com/blasphemy/furry-robot/rethinkdbutils"
 	"github.com/blasphemy/urls/utils"
 	r "github.com/dancannon/gorethink"
 	"github.com/go-martini/martini"

@@ -2,7 +2,7 @@ package main
 
 import (
 	"errors"
-	"github.com/blasphemy/puush/models"
+	"github.com/blasphemy/furry-robot/models"
 	r "github.com/dancannon/gorethink"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
