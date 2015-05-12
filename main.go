@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"github.com/blasphemy/furry-robot/models"
 	"github.com/blasphemy/furry-robot/rethinkdbutils"
 	"github.com/blasphemy/urls/utils"
@@ -136,6 +137,7 @@ func GetHandler(p martini.Params, res http.ResponseWriter) {
 	}
 	var result FilePiece
 	res.WriteHeader(http.StatusOK)
+	res.Header().Add("content-disposition", fmt.Sprintf(`inline; filename="%s"`, k.FileName))
 	for cur.Next(&result) {
 		res.Write(result.Data)
 	}
