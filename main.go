@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"github.com/blasphemy/furry-robot/models"
 	"github.com/blasphemy/furry-robot/rethinkdbutils"
-	"github.com/blasphemy/urls/utils"
+	"github.com/blasphemy/furry-robot/utils"
 	r "github.com/dancannon/gorethink"
 	"github.com/go-martini/martini"
 	"github.com/spf13/viper"
@@ -21,9 +21,11 @@ var session *r.Session
 var config models.Config
 
 type File struct {
-	Id       string `gorethink:"id"`
-	UserId   string
-	FileName string
+	Id        string `gorethink:"id"`
+	UserId    string
+	FileName  string
+	Private   bool
+	AccessKey string
 	//Data         []byte
 	Epoch        time.Time
 	LastAccessed time.Time
@@ -86,16 +88,11 @@ func main() {
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	//store = make(map[string]File)
 	m := martini.Classic()
 	m.Get("/", func(res http.ResponseWriter) {
 		res.WriteHeader(http.StatusOK)
-		/*
-			for _, x := range store["1"].Pieces {
-				res.Write(x.Data)
-			}
-		*/
 	})
+	m.Get("/:id/:key", GetHandler)
 	m.Get("/:id", GetHandler)
 	m.Post("/api/up", postHandler)
 	m.Run()
@@ -122,6 +119,11 @@ func GetHandler(p martini.Params, res http.ResponseWriter) {
 		return
 	}
 	log.Println("retrieved file")
+	if k.Private && p["key"] != k.AccessKey {
+		res.WriteHeader(http.StatusForbidden)
+		res.Write([]byte("You are not allowed to view this file"))
+		return
+	}
 	log.Printf("Updating timestamp for file %s", k.Id)
 	k.LastAccessed = time.Now()
 	err = r.Db(config.Db).Table(config.FileTable).Get(p["id"]).Update(&k).Exec(session)
@@ -136,8 +138,8 @@ func GetHandler(p martini.Params, res http.ResponseWriter) {
 		res.Write([]byte("still too dank"))
 	}
 	var result FilePiece
-	res.WriteHeader(http.StatusOK)
 	res.Header().Add("content-disposition", fmt.Sprintf(`inline; filename="%s"`, k.FileName))
+	res.WriteHeader(http.StatusOK)
 	for cur.Next(&result) {
 		res.Write(result.Data)
 	}
@@ -194,6 +196,10 @@ func postHandler(req *http.Request, res http.ResponseWriter) {
 		err = nil //Not fatal
 	}
 	f := File{Id: newId, FileName: header.Filename, Epoch: time.Now(), LastAccessed: time.Now(), UserId: user.Id}
+	if req.FormValue("private") == "true" {
+		f.Private = true
+		f.AccessKey = utils.Base62Rand(5)
+	}
 	err = r.Db(config.Db).Table(config.FileTable).Insert(&f).Exec(session)
 	if err != nil {
 		res.WriteHeader(http.StatusInternalServerError)
@@ -253,8 +259,14 @@ func postHandler(req *http.Request, res http.ResponseWriter) {
 		return
 	}
 	res.WriteHeader(http.StatusOK)
-	res.Write([]byte(config.BaseUrl + f.Id))
-	res.Write([]byte("," + config.BaseUrl + f.Id + ","))
+	res.Write([]byte("," + GetUrl(f) + ","))
+}
+
+func GetUrl(f File) string {
+	if f.Private {
+		return config.BaseUrl + f.Id + "/" + f.AccessKey
+	}
+	return config.BaseUrl + f.Id
 }
 
 func GetNewID() (string, error) {
