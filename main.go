@@ -140,7 +140,7 @@ func postHandler(req *http.Request, res http.ResponseWriter) {
 		LastAccessed: time.Now(),
 		UserId:       user.Id,
 		Hits:         0,
-		AccessKey:    utils.Base62Rand(5), //Set this now in case we want to make it private later
+		AccessKey:    utils.Base62Rand(viper.GetInt("AccessKeyLength")),
 	}
 	if req.FormValue("private") == "true" {
 		f.Private = true
