@@ -20,23 +20,6 @@ var session *r.Session
 
 var config models.Config
 
-type File struct {
-	Id           string `gorethink:"id"`
-	UserId       string
-	FileName     string
-	Private      bool
-	AccessKey    string
-	Epoch        time.Time
-	LastAccessed time.Time
-	Hits         int
-}
-
-type FilePiece struct {
-	Seq      int64
-	ParentId string
-	Data     []byte
-}
-
 func main() {
 	SetViperJunk()
 	config = models.Config{
@@ -104,7 +87,7 @@ func GetHandler(p martini.Params, res http.ResponseWriter) {
 		res.Write([]byte("Your meme was too dank for us"))
 		return
 	}
-	var k File
+	var k models.File
 	err = cur.One(&k)
 	if err != nil {
 		if err == r.ErrEmptyResult {
@@ -137,7 +120,7 @@ func GetHandler(p martini.Params, res http.ResponseWriter) {
 		res.WriteHeader(http.StatusBadRequest)
 		res.Write([]byte("still too dank"))
 	}
-	var result FilePiece
+	var result models.FilePiece
 	res.Header().Add("content-disposition", fmt.Sprintf(`inline; filename="%s"`, k.FileName))
 	res.WriteHeader(http.StatusOK)
 	for cur.Next(&result) {
@@ -195,10 +178,17 @@ func postHandler(req *http.Request, res http.ResponseWriter) {
 		log.Println(err.Error())
 		err = nil //Not fatal
 	}
-	f := File{Id: newId, FileName: header.Filename, Epoch: time.Now(), LastAccessed: time.Now(), UserId: user.Id, Hits: 0}
+	f := models.File{
+		Id:           newId,
+		FileName:     header.Filename,
+		Epoch:        time.Now(),
+		LastAccessed: time.Now(),
+		UserId:       user.Id,
+		Hits:         0,
+		AccessKey:    utils.Base62Rand(5), //Set this now in case we want to make it private later
+	}
 	if req.FormValue("private") == "true" {
 		f.Private = true
-		f.AccessKey = utils.Base62Rand(5)
 	}
 	err = r.Db(config.Db).Table(config.FileTable).Insert(&f).Exec(session)
 	if err != nil {
@@ -212,7 +202,7 @@ func postHandler(req *http.Request, res http.ResponseWriter) {
 	scanner := bufio.NewScanner(reader)
 	scanner.Split(bufio.ScanBytes)
 	ByteCounter := int64(0)
-	currentPiece := FilePiece{Seq: SeqCounter, ParentId: f.Id}
+	currentPiece := models.FilePiece{Seq: SeqCounter, ParentId: f.Id}
 	for scanner.Scan() {
 		currentPiece.Data = append(currentPiece.Data, scanner.Bytes()...)
 		ByteCounter++
@@ -237,7 +227,7 @@ func postHandler(req *http.Request, res http.ResponseWriter) {
 				}
 				return
 			}
-			currentPiece = FilePiece{Seq: SeqCounter, ParentId: f.Id}
+			currentPiece = models.FilePiece{Seq: SeqCounter, ParentId: f.Id}
 		}
 	}
 	err = r.Db(config.Db).Table(config.FilePieceTable).Insert(&currentPiece).Exec(session)
@@ -259,14 +249,7 @@ func postHandler(req *http.Request, res http.ResponseWriter) {
 		return
 	}
 	res.WriteHeader(http.StatusOK)
-	res.Write([]byte("," + GetUrl(f) + ","))
-}
-
-func GetUrl(f File) string {
-	if f.Private {
-		return config.BaseUrl + f.Id + "/" + f.AccessKey
-	}
-	return config.BaseUrl + f.Id
+	res.Write([]byte("," + f.GetUrl(config.BaseUrl) + ","))
 }
 
 func GetNewID() (string, error) {

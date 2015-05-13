@@ -25,6 +25,30 @@ type Config struct {
 	UserTable                 string
 }
 
+type File struct {
+	Id           string `gorethink:"id"`
+	UserId       string
+	FileName     string
+	Private      bool
+	AccessKey    string
+	Epoch        time.Time
+	LastAccessed time.Time
+	Hits         int
+}
+
+type FilePiece struct {
+	Seq      int64
+	ParentId string
+	Data     []byte
+}
+
+func (f File) GetUrl(BaseUrl string) string {
+	if f.Private {
+		return BaseUrl + f.Id + "/" + f.AccessKey
+	}
+	return BaseUrl + f.Id
+}
+
 func (user *User) UpdateLastActivity(session *r.Session, Database string, Table string) error {
 	user.LastActivity = time.Now()
 	err := r.Db(Database).Table(Table).Update(user).Exec(session)
