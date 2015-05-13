@@ -36,6 +36,7 @@ var AddUser = &cobra.Command{
 		if err != nil {
 			log.Fatal(err.Error())
 		}
+		log.Printf("User %s API KEY: %s", NewUser.Email, NewUser.ApiKey)
 	},
 }
 
