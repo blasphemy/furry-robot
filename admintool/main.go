@@ -57,7 +57,7 @@ func main() {
 }
 
 func ConfigInit() {
-	viper.SetConfigName("puush")
+	viper.SetConfigName("furryrobot")
 	viper.AddConfigPath("../")
 	viper.SetDefault("RethinkDbConnectionString", "127.0.0.1:28015")
 	viper.SetDefault("DBName", "puush")
