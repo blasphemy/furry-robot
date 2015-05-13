@@ -210,7 +210,6 @@ func postHandler(req *http.Request, res http.ResponseWriter) {
 func GetNewID() (string, error) {
 	err := r.Db(viper.GetString("DBName")).Table(viper.GetString("MetaTable")).Get("counter").Update(map[string]interface{}{"value": r.Row.Field("value").Add(1)}).Exec(session)
 	if err != nil {
-		log.Println("EXEC")
 		log.Println(err.Error())
 		return "", err
 	}
@@ -218,7 +217,6 @@ func GetNewID() (string, error) {
 	if err != nil {
 		err := r.Db(viper.GetString("DBName")).Table(viper.GetString("MetaTable")).Get("counter").Exec(session)
 		if err != r.ErrEmptyResult && err != nil {
-			log.Println("CURSOR")
 			log.Println(err.Error())
 			return "", err
 		}
@@ -231,7 +229,6 @@ func GetNewID() (string, error) {
 	var target uint64
 	cursor.One(&target)
 	if cursor.Err() != nil {
-		log.Println("ONE")
 		return "", cursor.Err()
 	}
 	return utils.Base62Encode(target), nil
