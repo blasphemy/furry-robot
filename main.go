@@ -21,15 +21,14 @@ var session *r.Session
 var config models.Config
 
 type File struct {
-	Id        string `gorethink:"id"`
-	UserId    string
-	FileName  string
-	Private   bool
-	AccessKey string
-	//Data         []byte
+	Id           string `gorethink:"id"`
+	UserId       string
+	FileName     string
+	Private      bool
+	AccessKey    string
 	Epoch        time.Time
 	LastAccessed time.Time
-	//Pieces       []FilePiece
+	Hits         int
 }
 
 type FilePiece struct {
@@ -126,6 +125,7 @@ func GetHandler(p martini.Params, res http.ResponseWriter) {
 	}
 	log.Printf("Updating timestamp for file %s", k.Id)
 	k.LastAccessed = time.Now()
+	k.Hits++
 	err = r.Db(config.Db).Table(config.FileTable).Get(p["id"]).Update(&k).Exec(session)
 	if err != nil {
 		log.Printf("Could not update timestamp for file %s: %s", k.Id, err.Error())
@@ -195,7 +195,7 @@ func postHandler(req *http.Request, res http.ResponseWriter) {
 		log.Println(err.Error())
 		err = nil //Not fatal
 	}
-	f := File{Id: newId, FileName: header.Filename, Epoch: time.Now(), LastAccessed: time.Now(), UserId: user.Id}
+	f := File{Id: newId, FileName: header.Filename, Epoch: time.Now(), LastAccessed: time.Now(), UserId: user.Id, Hits: 0}
 	if req.FormValue("private") == "true" {
 		f.Private = true
 		f.AccessKey = utils.Base62Rand(5)
