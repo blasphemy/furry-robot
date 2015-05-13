@@ -224,7 +224,7 @@ func GetNewID() (string, error) {
 		if err2 != nil {
 			return "", err
 		}
-		return "", nil
+		return utils.Base62Encode(0), nil
 	}
 	var target uint64
 	cursor.One(&target)
