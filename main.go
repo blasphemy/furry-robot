@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"github.com/blasphemy/furry-robot/models"
 	"github.com/blasphemy/furry-robot/utils"
@@ -18,7 +17,6 @@ var session *r.Session
 
 func main() {
 	ConfigInit()
-	DatabaseInit()
 	var err error
 	session, err = r.Connect(r.ConnectOpts{
 		Address: viper.GetString("RethinkDbConnectionString"),
@@ -26,6 +24,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err.Error())
 	}
+	DatabaseInit()
 	m := martini.Classic()
 	m.Get("/", func(res http.ResponseWriter) {
 		res.WriteHeader(http.StatusOK)
@@ -209,7 +208,6 @@ func postHandler(req *http.Request, res http.ResponseWriter) {
 }
 
 func GetNewID() (string, error) {
-	var target interface{}
 	err := r.Db(viper.GetString("DBName")).Table(viper.GetString("MetaTable")).Get("counter").Update(map[string]interface{}{"value": r.Row.Field("value").Add(1)}).Exec(session)
 	if err != nil {
 		log.Println("EXEC")
@@ -230,14 +228,11 @@ func GetNewID() (string, error) {
 		}
 		return "", nil
 	}
+	var target uint64
 	cursor.One(&target)
 	if cursor.Err() != nil {
 		log.Println("ONE")
 		return "", cursor.Err()
 	}
-	final, ok := target.(float64)
-	if !ok {
-		return "", errors.New("Cannot convert counter to float64")
-	}
-	return utils.Base62Encode(uint64(final)), nil
+	return utils.Base62Encode(target), nil
 }
