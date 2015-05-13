@@ -15,58 +15,46 @@ import (
 	"time"
 )
 
-//var store map[string]File
 var session *r.Session
-
-var config models.Config
 
 func main() {
 	ConfigInit()
-	config = models.Config{
-		RethinkDbConnectionString: viper.GetString("RethinkDbConnectionString"),
-		Db:             viper.GetString("DBName"),
-		FileTable:      viper.GetString("FileTable"),
-		FilePieceTable: viper.GetString("FilePieceTable"),
-		MetaTable:      viper.GetString("MetaTable"),
-		UserTable:      viper.GetString("UserTable"),
-		BaseUrl:        viper.GetString("BaseUrl"),
-	}
 	var err error
 	session, err = r.Connect(r.ConnectOpts{
-		Address: config.RethinkDbConnectionString,
+		Address: viper.GetString("RethinkDbConnectionString"),
 	})
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	err = rethinkdbutils.MakeDbIfNotExist(config.Db, session)
+	err = rethinkdbutils.MakeDbIfNotExist(viper.GetString("DBName"), session)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	err = rethinkdbutils.MakeTableIfNotExist(config.Db, config.FileTable, session)
+	err = rethinkdbutils.MakeTableIfNotExist(viper.GetString("DBName"), viper.GetString("FileTable"), session)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	err = rethinkdbutils.MakeTableIfNotExist(config.Db, config.FilePieceTable, session)
+	err = rethinkdbutils.MakeTableIfNotExist(viper.GetString("DBName"), viper.GetString("FilePieceTable"), session)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	err = rethinkdbutils.MakeTableIfNotExist(config.Db, config.MetaTable, session)
+	err = rethinkdbutils.MakeTableIfNotExist(viper.GetString("DBName"), viper.GetString("MetaTable"), session)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	err = rethinkdbutils.MakeIndexIfNotExist(config.Db, config.FilePieceTable, "ParentId", session)
+	err = rethinkdbutils.MakeIndexIfNotExist(viper.GetString("DBName"), viper.GetString("FilePieceTable"), "ParentId", session)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	err = rethinkdbutils.MakeTableIfNotExist(config.Db, config.UserTable, session)
+	err = rethinkdbutils.MakeTableIfNotExist(viper.GetString("DBName"), viper.GetString("UserTable"), session)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	err = rethinkdbutils.MakeIndexIfNotExist(config.Db, config.FileTable, "UserId", session)
+	err = rethinkdbutils.MakeIndexIfNotExist(viper.GetString("DBName"), viper.GetString("FileTable"), "UserId", session)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	err = rethinkdbutils.MakeIndexIfNotExist(config.Db, config.UserTable, "ApiKey", session)
+	err = rethinkdbutils.MakeIndexIfNotExist(viper.GetString("DBName"), viper.GetString("UserTable"), "ApiKey", session)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
@@ -81,7 +69,7 @@ func main() {
 }
 
 func GetHandler(p martini.Params, res http.ResponseWriter) {
-	cur, err := r.Db(config.Db).Table(config.FileTable).Get(p["id"]).Run(session)
+	cur, err := r.Db(viper.GetString("DBName")).Table(viper.GetString("FileTable")).Get(p["id"]).Run(session)
 	if err != nil {
 		res.WriteHeader(http.StatusBadRequest)
 		res.Write([]byte("Your meme was too dank for us"))
@@ -109,12 +97,12 @@ func GetHandler(p martini.Params, res http.ResponseWriter) {
 	log.Printf("Updating timestamp for file %s", k.Id)
 	k.LastAccessed = time.Now()
 	k.Hits++
-	err = r.Db(config.Db).Table(config.FileTable).Get(p["id"]).Update(&k).Exec(session)
+	err = r.Db(viper.GetString("DBName")).Table(viper.GetString("FileTable")).Get(p["id"]).Update(&k).Exec(session)
 	if err != nil {
 		log.Printf("Could not update timestamp for file %s: %s", k.Id, err.Error())
 	}
 	err = nil
-	cur, err = r.Db(config.Db).Table(config.FilePieceTable).Filter(map[string]interface{}{"ParentId": p["id"]}).OrderBy("Seq").Run(session)
+	cur, err = r.Db(viper.GetString("DBName")).Table(viper.GetString("FilePieceTable")).Filter(map[string]interface{}{"ParentId": p["id"]}).OrderBy("Seq").Run(session)
 	if err != nil {
 		log.Println(err.Error())
 		res.WriteHeader(http.StatusBadRequest)
@@ -140,7 +128,7 @@ func postHandler(req *http.Request, res http.ResponseWriter) {
 		res.Write([]byte("Your meme was too dank for us"))
 		return
 	}
-	cur, err := r.Db(config.Db).Table(config.UserTable).Filter(map[string]interface{}{"ApiKey": req.FormValue("k")}).Run(session)
+	cur, err := r.Db(viper.GetString("DBName")).Table(viper.GetString("UserTable")).Filter(map[string]interface{}{"ApiKey": req.FormValue("k")}).Run(session)
 	if err != nil {
 		res.WriteHeader(http.StatusInternalServerError)
 		res.Write([]byte("Your meme was too dank for us"))
@@ -173,7 +161,7 @@ func postHandler(req *http.Request, res http.ResponseWriter) {
 		return
 	}
 	log.Printf("Updating user %s last activity", user.Email)
-	err = user.UpdateLastActivity(session, config.Db, config.UserTable)
+	err = user.UpdateLastActivity(session, viper.GetString("DBName"), viper.GetString("UserTable"))
 	if err != nil {
 		log.Println(err.Error())
 		err = nil //Not fatal
@@ -190,7 +178,7 @@ func postHandler(req *http.Request, res http.ResponseWriter) {
 	if req.FormValue("private") == "true" {
 		f.Private = true
 	}
-	err = r.Db(config.Db).Table(config.FileTable).Insert(&f).Exec(session)
+	err = r.Db(viper.GetString("DBName")).Table(viper.GetString("FileTable")).Insert(&f).Exec(session)
 	if err != nil {
 		res.WriteHeader(http.StatusInternalServerError)
 		res.Write([]byte("Your meme was too dank for us"))
@@ -209,19 +197,19 @@ func postHandler(req *http.Request, res http.ResponseWriter) {
 		if ByteCounter >= 1024 {
 			ByteCounter = 0
 			SeqCounter++
-			err = r.Db(config.Db).Table(config.FilePieceTable).Insert(&currentPiece).Exec(session)
+			err = r.Db(viper.GetString("DBName")).Table(viper.GetString("FilePieceTable")).Insert(&currentPiece).Exec(session)
 			if err != nil {
 				res.WriteHeader(http.StatusInternalServerError)
 				res.Write([]byte("Your meme was too dank for us"))
 				log.Println(err.Error())
 				//try to undo whatever the fuck we just did before erroring
 				err = nil
-				err = r.Db(config.Db).Table(config.FileTable).Get(f.Id).Delete().Exec(session)
+				err = r.Db(viper.GetString("DBName")).Table(viper.GetString("FileTable")).Get(f.Id).Delete().Exec(session)
 				if err != nil {
 					log.Printf("Problem rolling back file %s: %s", f.Id, err.Error())
 					err = nil
 				}
-				err = r.Db(config.Db).Table(config.FilePieceTable).Filter(map[string]interface{}{"ParentId": f.Id}).Delete().Exec(session)
+				err = r.Db(viper.GetString("DBName")).Table(viper.GetString("FilePieceTable")).Filter(map[string]interface{}{"ParentId": f.Id}).Delete().Exec(session)
 				if err != nil {
 					log.Printf("problem rolling back file pieces for %s: %s", f.Id, err.Error())
 				}
@@ -230,45 +218,45 @@ func postHandler(req *http.Request, res http.ResponseWriter) {
 			currentPiece = models.FilePiece{Seq: SeqCounter, ParentId: f.Id}
 		}
 	}
-	err = r.Db(config.Db).Table(config.FilePieceTable).Insert(&currentPiece).Exec(session)
+	err = r.Db(viper.GetString("DBName")).Table(viper.GetString("FilePieceTable")).Insert(&currentPiece).Exec(session)
 	if err != nil {
 		res.WriteHeader(http.StatusInternalServerError)
 		res.Write([]byte("Your meme was too dank for us"))
 		log.Println(err.Error())
 		//try to undo whatever the fuck we just did before erroring
 		err = nil
-		err = r.Db(config.Db).Table(config.FileTable).Get(f.Id).Delete().Exec(session)
+		err = r.Db(viper.GetString("DBName")).Table(viper.GetString("FileTable")).Get(f.Id).Delete().Exec(session)
 		if err != nil {
 			log.Printf("Problem rolling back file %s: %s", f.Id, err.Error())
 			err = nil
 		}
-		err = r.Db(config.Db).Table(config.FilePieceTable).Filter(map[string]interface{}{"ParentId": f.Id}).Delete().Exec(session)
+		err = r.Db(viper.GetString("DBName")).Table(viper.GetString("FilePieceTable")).Filter(map[string]interface{}{"ParentId": f.Id}).Delete().Exec(session)
 		if err != nil {
 			log.Printf("problem rolling back file pieces for %s: %s", f.Id, err.Error())
 		}
 		return
 	}
 	res.WriteHeader(http.StatusOK)
-	res.Write([]byte("," + f.GetUrl(config.BaseUrl) + ","))
+	res.Write([]byte("," + f.GetUrl(viper.GetString("BaseUrl")) + ","))
 }
 
 func GetNewID() (string, error) {
 	var target interface{}
-	err := r.Db(config.Db).Table(config.MetaTable).Get("counter").Update(map[string]interface{}{"value": r.Row.Field("value").Add(1)}).Exec(session)
+	err := r.Db(viper.GetString("DBName")).Table(viper.GetString("MetaTable")).Get("counter").Update(map[string]interface{}{"value": r.Row.Field("value").Add(1)}).Exec(session)
 	if err != nil {
 		log.Println("EXEC")
 		log.Println(err.Error())
 		return "", err
 	}
-	cursor, err := r.Db(config.Db).Table(config.MetaTable).Get("counter").Field("value").Run(session)
+	cursor, err := r.Db(viper.GetString("DBName")).Table(viper.GetString("MetaTable")).Get("counter").Field("value").Run(session)
 	if err != nil {
-		err := r.Db(config.Db).Table(config.MetaTable).Get("counter").Exec(session)
+		err := r.Db(viper.GetString("DBName")).Table(viper.GetString("MetaTable")).Get("counter").Exec(session)
 		if err != r.ErrEmptyResult && err != nil {
 			log.Println("CURSOR")
 			log.Println(err.Error())
 			return "", err
 		}
-		err2 := r.Db(config.Db).Table(config.MetaTable).Insert(map[string]interface{}{"id": "counter", "value": 0}).Exec(session)
+		err2 := r.Db(viper.GetString("DBName")).Table(viper.GetString("MetaTable")).Insert(map[string]interface{}{"id": "counter", "value": 0}).Exec(session)
 		if err2 != nil {
 			return "", err
 		}

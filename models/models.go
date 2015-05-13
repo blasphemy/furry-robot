@@ -15,16 +15,6 @@ type User struct {
 	Epoch          time.Time
 }
 
-type Config struct {
-	RethinkDbConnectionString string
-	Db                        string
-	FileTable                 string
-	FilePieceTable            string
-	MetaTable                 string
-	BaseUrl                   string
-	UserTable                 string
-}
-
 type File struct {
 	Id           string `gorethink:"id"`
 	UserId       string
