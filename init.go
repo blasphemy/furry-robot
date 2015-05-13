@@ -7,10 +7,10 @@ import (
 )
 
 func ConfigInit() {
-	viper.SetConfigName("puush")
+	viper.SetConfigName("furryrobot")
 	viper.AddConfigPath(".")
 	viper.SetDefault("RethinkDbConnectionString", "127.0.0.1:28015")
-	viper.SetDefault("DBName", "puush")
+	viper.SetDefault("DBName", "FurryRobot")
 	viper.SetDefault("FileTable", "Files")
 	viper.SetDefault("FilePieceTable", "FilePieces")
 	viper.SetDefault("MetaTable", "Meta")
