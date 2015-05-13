@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/blasphemy/furry-robot/models"
-	"github.com/blasphemy/furry-robot/rethinkdbutils"
 	"github.com/blasphemy/furry-robot/utils"
 	r "github.com/dancannon/gorethink"
 	"github.com/go-martini/martini"
@@ -19,42 +18,11 @@ var session *r.Session
 
 func main() {
 	ConfigInit()
+	DatabaseInit()
 	var err error
 	session, err = r.Connect(r.ConnectOpts{
 		Address: viper.GetString("RethinkDbConnectionString"),
 	})
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-	err = rethinkdbutils.MakeDbIfNotExist(viper.GetString("DBName"), session)
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-	err = rethinkdbutils.MakeTableIfNotExist(viper.GetString("DBName"), viper.GetString("FileTable"), session)
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-	err = rethinkdbutils.MakeTableIfNotExist(viper.GetString("DBName"), viper.GetString("FilePieceTable"), session)
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-	err = rethinkdbutils.MakeTableIfNotExist(viper.GetString("DBName"), viper.GetString("MetaTable"), session)
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-	err = rethinkdbutils.MakeIndexIfNotExist(viper.GetString("DBName"), viper.GetString("FilePieceTable"), "ParentId", session)
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-	err = rethinkdbutils.MakeTableIfNotExist(viper.GetString("DBName"), viper.GetString("UserTable"), session)
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-	err = rethinkdbutils.MakeIndexIfNotExist(viper.GetString("DBName"), viper.GetString("FileTable"), "UserId", session)
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-	err = rethinkdbutils.MakeIndexIfNotExist(viper.GetString("DBName"), viper.GetString("UserTable"), "ApiKey", session)
 	if err != nil {
 		log.Fatal(err.Error())
 	}
@@ -272,22 +240,4 @@ func GetNewID() (string, error) {
 		return "", errors.New("Cannot convert counter to float64")
 	}
 	return utils.Base62Encode(uint64(final)), nil
-}
-
-func ConfigInit() {
-	viper.SetConfigName("puush")
-	viper.AddConfigPath(".")
-	viper.SetDefault("RethinkDbConnectionString", "127.0.0.1:28015")
-	viper.SetDefault("DBName", "puush")
-	viper.SetDefault("FileTable", "Files")
-	viper.SetDefault("FilePieceTable", "FilePieces")
-	viper.SetDefault("MetaTable", "Meta")
-	viper.SetDefault("UserTable", "Users")
-	viper.SetDefault("BaseUrl", "http://127.0.0.1:3000/")
-	log.Println("Reading config")
-	err := viper.ReadInConfig()
-	if err != nil {
-		log.Println("error reading config, using defaults")
-		log.Println(err.Error())
-	}
 }
