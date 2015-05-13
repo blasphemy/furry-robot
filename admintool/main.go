@@ -40,7 +40,7 @@ var AddUser = &cobra.Command{
 }
 
 func main() {
-	SetViperJunk()
+	ConfigInit()
 	var err error
 	session, err = r.Connect(r.ConnectOpts{
 		Address: viper.GetString("RethinkDbConnectionString"),
@@ -55,7 +55,7 @@ func main() {
 	AdminTool.Execute()
 }
 
-func SetViperJunk() {
+func ConfigInit() {
 	viper.SetConfigName("puush")
 	viper.AddConfigPath("../")
 	viper.SetDefault("RethinkDbConnectionString", "127.0.0.1:28015")

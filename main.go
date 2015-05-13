@@ -21,7 +21,7 @@ var session *r.Session
 var config models.Config
 
 func main() {
-	SetViperJunk()
+	ConfigInit()
 	config = models.Config{
 		RethinkDbConnectionString: viper.GetString("RethinkDbConnectionString"),
 		Db:             viper.GetString("DBName"),
@@ -286,7 +286,7 @@ func GetNewID() (string, error) {
 	return utils.Base62Encode(uint64(final)), nil
 }
 
-func SetViperJunk() {
+func ConfigInit() {
 	viper.SetConfigName("puush")
 	viper.AddConfigPath(".")
 	viper.SetDefault("RethinkDbConnectionString", "127.0.0.1:28015")
