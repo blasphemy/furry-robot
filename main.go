@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/viper"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -128,6 +129,9 @@ func postHandler(req *http.Request, res http.ResponseWriter) {
 		user = &models.User{}
 	}
 	newId, err := GetNewID()
+	if strings.ToLower(newId) == "api" {
+		newId, err = GetNewID()
+	}
 	if err != nil {
 		res.WriteHeader(http.StatusInternalServerError)
 		res.Write([]byte("Your meme was too dank for us"))
