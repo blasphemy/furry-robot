@@ -24,6 +24,7 @@ type File struct {
 	Epoch        time.Time
 	LastAccessed time.Time
 	Hits         int
+	FileSize     int64
 }
 
 type FilePiece struct {

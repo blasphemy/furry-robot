@@ -40,6 +40,13 @@ var AddUser = &cobra.Command{
 	},
 }
 
+var Migrations = &cobra.Command{
+	Use: "migrate",
+	Run: func(cmd *cobra.Command, args []string) {
+		RunDataBaseMigrations()
+	},
+}
+
 func main() {
 	ConfigInit()
 	var err error
@@ -53,6 +60,7 @@ func main() {
 	AddUser.Flags().StringVarP(&NewUser.Email, "email", "e", "", "users email address")
 	AddUser.Flags().BoolVarP(&NewUser.Active, "active", "a", true, "user is active")
 	AdminTool.AddCommand(AddUser)
+	AdminTool.AddCommand(Migrations)
 	AdminTool.Execute()
 }
 
@@ -60,7 +68,7 @@ func ConfigInit() {
 	viper.SetConfigName("furryrobot")
 	viper.AddConfigPath("../")
 	viper.SetDefault("RethinkDbConnectionString", "127.0.0.1:28015")
-	viper.SetDefault("DBName", "puush")
+	viper.SetDefault("DBName", "FurryRobot")
 	viper.SetDefault("FileTable", "Files")
 	viper.SetDefault("FilePieceTable", "FilePieces")
 	viper.SetDefault("MetaTable", "Meta")
@@ -89,4 +97,43 @@ func GetNewApiKey() (string, error) {
 		return "", errors.New("Could not turn UUID into string")
 	}
 	return result, nil
+}
+
+func RunDataBaseMigrations() {
+	err := FileSizeMigration()
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+}
+
+func FileSizeMigration() error {
+	log.Println("Beginning migration to add file sizes")
+	cur, err := r.Db(viper.GetString("DBName")).Table(viper.GetString("FileTable")).Run(session)
+	if err != nil {
+		return err
+	}
+	counter := 0
+	result := &models.File{}
+	for cur.Next(result) {
+		if result.FileSize == 0 {
+			var ByteCounter int64
+			cur2, err := r.Db(viper.GetString("DBName")).Table(viper.GetString("FilePieceTable")).Filter(map[string]interface{}{"ParentId": result.Id}).Run(session)
+			if err != nil {
+				return err
+			}
+			res2 := &models.FilePiece{}
+			for cur2.Next(res2) {
+				ByteCounter = ByteCounter + int64(len(res2.Data))
+			}
+			log.Printf("File %s size: %d", result.Id, ByteCounter)
+			result.FileSize = ByteCounter
+			err = r.Db(viper.GetString("DBName")).Table(viper.GetString("FileTable")).Update(result).Exec(session)
+			if err != nil {
+				return err
+			}
+			counter++
+		}
+	}
+	log.Printf("Updated %d files", counter)
+	return nil
 }

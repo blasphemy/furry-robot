@@ -17,6 +17,7 @@ func ConfigInit() {
 	viper.SetDefault("UserTable", "Users")
 	viper.SetDefault("BaseUrl", "http://127.0.0.1:3000/")
 	viper.SetDefault("AccessKeyLength", 5)
+	viper.SetDefault("Debug", false)
 	log.Println("Reading config")
 	err := viper.ReadInConfig()
 	if err != nil {

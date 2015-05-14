@@ -95,30 +95,36 @@ func postHandler(req *http.Request, res http.ResponseWriter) {
 		res.Write([]byte("Your meme was too dank for us"))
 		return
 	}
-	cur, err := r.Db(viper.GetString("DBName")).Table(viper.GetString("UserTable")).Filter(map[string]interface{}{"ApiKey": req.FormValue("k")}).Run(session)
-	if err != nil {
-		res.WriteHeader(http.StatusInternalServerError)
-		res.Write([]byte("Your meme was too dank for us"))
-		return
-	}
-	user := &models.User{}
-	err = cur.One(user)
-	if err != nil {
-		if err == r.ErrEmptyResult {
-			res.WriteHeader(http.StatusBadRequest)
-			res.Write([]byte("Your user could not be found"))
+	var user *models.User
+	if !viper.GetBool("Debug") {
+		cur, err := r.Db(viper.GetString("DBName")).Table(viper.GetString("UserTable")).Filter(map[string]interface{}{"ApiKey": req.FormValue("k")}).Run(session)
+		if err != nil {
+			res.WriteHeader(http.StatusInternalServerError)
+			res.Write([]byte("Your meme was too dank for us"))
+			return
+		}
+		user = &models.User{}
+		err = cur.One(user)
+		if err != nil {
+			if err == r.ErrEmptyResult {
+				res.WriteHeader(http.StatusBadRequest)
+				res.Write([]byte("Your user could not be found"))
+				log.Println(err.Error())
+				return
+			}
+			res.WriteHeader(http.StatusInternalServerError)
+			res.Write([]byte("Your meme was too dank for us"))
 			log.Println(err.Error())
 			return
 		}
-		res.WriteHeader(http.StatusInternalServerError)
-		res.Write([]byte("Your meme was too dank for us"))
-		log.Println(err.Error())
-		return
-	}
-	if !user.Active {
-		res.WriteHeader(http.StatusUnauthorized)
-		res.Write([]byte("lol ur b& haha #rekt"))
-		return
+		if !user.Active {
+			res.WriteHeader(http.StatusUnauthorized)
+			res.Write([]byte("lol ur b& haha #rekt"))
+			return
+		}
+	} else {
+		log.Println("Running in debug mode, user authentication is skipped")
+		user = &models.User{}
 	}
 	newId, err := GetNewID()
 	if err != nil {
