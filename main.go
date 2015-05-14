@@ -77,6 +77,7 @@ func GetHandler(p martini.Params, res http.ResponseWriter) {
 	}
 	var result models.FilePiece
 	res.Header().Add("content-disposition", fmt.Sprintf(`inline; filename="%s"`, k.FileName))
+	res.Header().Add("Content-Length", fmt.Sprintf("%d", k.FileSize))
 	res.WriteHeader(http.StatusOK)
 	for cur.Next(&result) {
 		res.Write(result.Data)
@@ -151,20 +152,15 @@ func postHandler(req *http.Request, res http.ResponseWriter) {
 	if req.FormValue("private") == "true" {
 		f.Private = true
 	}
-	err = r.Db(viper.GetString("DBName")).Table(viper.GetString("FileTable")).Insert(&f).Exec(session)
-	if err != nil {
-		res.WriteHeader(http.StatusInternalServerError)
-		res.Write([]byte("Your meme was too dank for us"))
-		log.Println(err.Error())
-		return
-	}
 	SeqCounter := int64(0)
 	reader := bufio.NewReader(file)
 	scanner := bufio.NewScanner(reader)
 	scanner.Split(bufio.ScanBytes)
 	ByteCounter := int64(0)
+	FileSizeCounter := int64(0)
 	currentPiece := models.FilePiece{Seq: SeqCounter, ParentId: f.Id}
 	for scanner.Scan() {
+		FileSizeCounter++
 		currentPiece.Data = append(currentPiece.Data, scanner.Bytes()...)
 		ByteCounter++
 		if ByteCounter >= 1024 {
@@ -191,6 +187,8 @@ func postHandler(req *http.Request, res http.ResponseWriter) {
 			currentPiece = models.FilePiece{Seq: SeqCounter, ParentId: f.Id}
 		}
 	}
+	f.FileSize = FileSizeCounter
+	err = r.Db(viper.GetString("DBName")).Table(viper.GetString("FileTable")).Insert(&f).Exec(session)
 	err = r.Db(viper.GetString("DBName")).Table(viper.GetString("FilePieceTable")).Insert(&currentPiece).Exec(session)
 	if err != nil {
 		res.WriteHeader(http.StatusInternalServerError)
