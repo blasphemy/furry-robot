@@ -1,13 +1,13 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"github.com/blasphemy/furry-robot/models"
 	"github.com/blasphemy/furry-robot/utils"
 	r "github.com/dancannon/gorethink"
 	"github.com/go-martini/martini"
 	"github.com/spf13/viper"
+	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -86,133 +86,141 @@ func GetHandler(p martini.Params, res http.ResponseWriter) {
 }
 
 func postHandler(req *http.Request, res http.ResponseWriter) {
-	if req.FormValue("z") != "poop" {
-		res.WriteHeader(http.StatusBadRequest)
-		res.Write([]byte("Sorry, your meme wasn't dank enough."))
-		return
+	var userFinished bool
+	var FileFinished bool
+	var file models.File
+	//Generate a new ID on every request. Yes, this is kind of dumb, but we can get it out of the way here.
+	newid, err := GetNewID()
+	if strings.ToLower(newid) == "api" {
+		newid, err = GetNewID()
 	}
-	file, header, err := req.FormFile("f")
 	if err != nil {
-		res.WriteHeader(http.StatusBadRequest)
-		res.Write([]byte("Your meme was too dank for us"))
+		res.WriteHeader(http.StatusInternalServerError)
+		res.Write([]byte(err.Error()))
 		return
 	}
-	var user *models.User
-	if !viper.GetBool("Debug") {
-		cur, err := r.Db(viper.GetString("DBName")).Table(viper.GetString("UserTable")).Filter(map[string]interface{}{"ApiKey": req.FormValue("k")}).Run(session)
-		if err != nil {
-			res.WriteHeader(http.StatusInternalServerError)
-			res.Write([]byte("Your meme was too dank for us"))
-			return
+	log.Printf("New file id: %s", newid)
+	file.Id = newid
+	var user models.User
+	var apikey string
+	reader, err := req.MultipartReader()
+	if err != nil {
+		res.WriteHeader(http.StatusInternalServerError)
+		res.Write([]byte(err.Error()))
+		log.Println("Error opening reader")
+		log.Println(err.Error())
+		return
+	}
+	for {
+		part, err := reader.NextPart()
+		if err == io.EOF {
+			break
 		}
-		user = &models.User{}
-		err = cur.One(user)
 		if err != nil {
-			if err == r.ErrEmptyResult {
-				res.WriteHeader(http.StatusBadRequest)
-				res.Write([]byte("Your user could not be found"))
-				log.Println(err.Error())
-				return
-			}
 			res.WriteHeader(http.StatusInternalServerError)
-			res.Write([]byte("Your meme was too dank for us"))
+			res.Write([]byte(err.Error()))
+			log.Println("NextPart error")
 			log.Println(err.Error())
 			return
 		}
-		if !user.Active {
-			res.WriteHeader(http.StatusUnauthorized)
-			res.Write([]byte("lol ur b& haha #rekt"))
-			return
-		}
-	} else {
-		log.Println("Running in debug mode, user authentication is skipped")
-		user = &models.User{}
-	}
-	newId, err := GetNewID()
-	if strings.ToLower(newId) == "api" {
-		newId, err = GetNewID()
-	}
-	if err != nil {
-		res.WriteHeader(http.StatusInternalServerError)
-		res.Write([]byte("Your meme was too dank for us"))
-		log.Println(err.Error())
-		return
-	}
-	log.Printf("Updating user %s last activity", user.Email)
-	err = user.UpdateLastActivity(session, viper.GetString("DBName"), viper.GetString("UserTable"))
-	if err != nil {
-		log.Println(err.Error())
-		err = nil //Not fatal
-	}
-	f := models.File{
-		Id:           newId,
-		FileName:     header.Filename,
-		Epoch:        time.Now(),
-		LastAccessed: time.Now(),
-		UserId:       user.Id,
-		Hits:         0,
-		AccessKey:    utils.Base62Rand(viper.GetInt("AccessKeyLength")),
-	}
-	if req.FormValue("private") == "true" {
-		f.Private = true
-	}
-	SeqCounter := int64(0)
-	reader := bufio.NewReader(file)
-	scanner := bufio.NewScanner(reader)
-	scanner.Split(bufio.ScanBytes)
-	ByteCounter := int64(0)
-	FileSizeCounter := int64(0)
-	currentPiece := models.FilePiece{Seq: SeqCounter, ParentId: f.Id}
-	for scanner.Scan() {
-		FileSizeCounter++
-		currentPiece.Data = append(currentPiece.Data, scanner.Bytes()...)
-		ByteCounter++
-		if ByteCounter >= 1024 {
-			ByteCounter = 0
-			SeqCounter++
-			err = r.Db(viper.GetString("DBName")).Table(viper.GetString("FilePieceTable")).Insert(&currentPiece).Exec(session)
+		switch part.FormName() {
+		case "k":
+			buffer := make([]byte, 1024)
+			numread, err := part.Read(buffer)
 			if err != nil {
 				res.WriteHeader(http.StatusInternalServerError)
-				res.Write([]byte("Your meme was too dank for us"))
+				res.Write([]byte(err.Error()))
+				log.Println("K part.Read error")
 				log.Println(err.Error())
-				//try to undo whatever the fuck we just did before erroring
-				err = nil
-				err = r.Db(viper.GetString("DBName")).Table(viper.GetString("FileTable")).Get(f.Id).Delete().Exec(session)
-				if err != nil {
-					log.Printf("Problem rolling back file %s: %s", f.Id, err.Error())
-					err = nil
-				}
-				err = r.Db(viper.GetString("DBName")).Table(viper.GetString("FilePieceTable")).Filter(map[string]interface{}{"ParentId": f.Id}).Delete().Exec(session)
-				if err != nil {
-					log.Printf("problem rolling back file pieces for %s: %s", f.Id, err.Error())
-				}
 				return
 			}
-			currentPiece = models.FilePiece{Seq: SeqCounter, ParentId: f.Id}
+			apikey = string(buffer[:numread])
+			log.Printf("User Api key: %s", apikey)
+			user, err = models.GetUserByApiKey(apikey, session, viper.GetString("DBName"), viper.GetString("UserTable"), viper.GetBool("Debug"))
+			if !user.Active {
+				res.WriteHeader(http.StatusUnauthorized)
+				res.Write([]byte("You are not authorized to upload"))
+				return
+			}
+			log.Printf("Updating user %s last activity.", user.Email)
+			err = user.UpdateLastActivity(session, viper.GetString("DBName"), viper.GetString("UserTable"))
+			if err != nil {
+				log.Println(err.Error())
+				err = nil //Not fatal
+			}
+			userFinished = true
+		case "private":
+			buffer := make([]byte, 1024)
+			numread, err := part.Read(buffer)
+			if err != nil {
+				res.WriteHeader(http.StatusInternalServerError)
+				res.Write([]byte(err.Error()))
+				return
+			}
+			if string(buffer[:numread]) == "true" {
+				file.Private = true
+			}
+		case "f":
+			//This assumes that "f" will be the last parameter sent.
+			//This is a stupid assumption
+			if part.FileName() == "" {
+				res.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			file.FileName = part.FileName()
+			var Seq int64
+			for {
+				buffer := make([]byte, 1024)
+				Read, err := part.Read(buffer)
+				if err != nil {
+					if err == io.EOF {
+						FileFinished = true
+						break
+					}
+					res.WriteHeader(http.StatusInternalServerError)
+					res.Write([]byte(err.Error()))
+					return
+				}
+				file.FileSize = file.FileSize + int64(Read)
+				f := models.FilePiece{Data: buffer[:Read], Seq: Seq, ParentId: file.Id}
+				err = r.Db(viper.GetString("DBName")).Table(viper.GetString("FilePieceTable")).Insert(&f).Exec(session)
+				if err != nil {
+					res.WriteHeader(http.StatusInternalServerError)
+					res.Write([]byte(err.Error()))
+					r.Db(viper.GetString("DBName")).Table(viper.GetString("FilePieceTable")).Filter(map[string]interface{}{"ParentId": file.Id}).Delete().Exec(session)
+					return
+				}
+				Seq++
+			}
 		}
 	}
-	f.FileSize = FileSizeCounter
-	err = r.Db(viper.GetString("DBName")).Table(viper.GetString("FileTable")).Insert(&f).Exec(session)
-	err = r.Db(viper.GetString("DBName")).Table(viper.GetString("FilePieceTable")).Insert(&currentPiece).Exec(session)
-	if err != nil {
-		res.WriteHeader(http.StatusInternalServerError)
-		res.Write([]byte("Your meme was too dank for us"))
-		log.Println(err.Error())
-		//try to undo whatever the fuck we just did before erroring
-		err = nil
-		err = r.Db(viper.GetString("DBName")).Table(viper.GetString("FileTable")).Get(f.Id).Delete().Exec(session)
-		if err != nil {
-			log.Printf("Problem rolling back file %s: %s", f.Id, err.Error())
-			err = nil
-		}
-		err = r.Db(viper.GetString("DBName")).Table(viper.GetString("FilePieceTable")).Filter(map[string]interface{}{"ParentId": f.Id}).Delete().Exec(session)
-		if err != nil {
-			log.Printf("problem rolling back file pieces for %s: %s", f.Id, err.Error())
-		}
+	//Finally out of that mess.
+	if !userFinished {
+		res.WriteHeader(http.StatusBadRequest)
+		res.Write([]byte("Please provide an API key"))
 		return
 	}
+	if !FileFinished {
+		res.WriteHeader(http.StatusBadRequest)
+		res.Write([]byte("You did not provide a file"))
+		return
+	}
+	file.AccessKey = utils.Base62Rand(viper.GetInt("AccessKeyLength"))
+	err = r.Db(viper.GetString("DBName")).Table(viper.GetString("FileTable")).Insert(&file).Exec(session)
+	if err != nil {
+		res.WriteHeader(http.StatusInternalServerError)
+		res.Write([]byte(err.Error()))
+		log.Println("Error inserting file. Attempting to roll back")
+		log.Println(err.Error())
+		err = nil
+		err = r.Db(viper.GetString("DBName")).Table(viper.GetString("FilePieceTable")).Filter(map[string]interface{}{"ParentId": file.Id}).Delete().Exec(session)
+		if err != nil {
+			log.Println("Error rolling back. Nothing to do here.")
+			log.Println(err.Error())
+		}
+	}
 	res.WriteHeader(http.StatusOK)
-	res.Write([]byte("," + f.GetUrl(viper.GetString("BaseUrl")) + ","))
+	res.Write([]byte("," + file.GetUrl(viper.GetString("BaseUrl")) + ","))
 }
 
 func GetNewID() (string, error) {

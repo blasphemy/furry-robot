@@ -48,3 +48,20 @@ func (user *User) UpdateLastActivity(session *r.Session, Database string, Table 
 	}
 	return nil
 }
+
+func GetUserByApiKey(ApiKey string, session *r.Session, Dbname string, Tablename string, debug bool) (User, error) {
+	var result User
+	if debug {
+		result.Active = true
+		return result, nil
+	}
+	cur, err := r.Db(Dbname).Table(Tablename).Filter(map[string]interface{}{"ApiKey": ApiKey}).Run(session)
+	if err != nil {
+		return result, err
+	}
+	err = cur.One(&result)
+	if err != nil {
+		return result, err
+	}
+	return result, nil
+}
