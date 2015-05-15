@@ -23,6 +23,7 @@ func main() {
 		Address: viper.GetString("RethinkDbConnectionString"),
 	})
 	if err != nil {
+		log.Println("Error connecting to database")
 		log.Fatal(err.Error())
 	}
 	DatabaseInit()
@@ -39,8 +40,8 @@ func main() {
 func GetHandler(p martini.Params, res http.ResponseWriter) {
 	cur, err := r.Db(viper.GetString("DBName")).Table(viper.GetString("FileTable")).Get(p["id"]).Run(session)
 	if err != nil {
-		res.WriteHeader(http.StatusBadRequest)
-		res.Write([]byte("Your meme was too dank for us"))
+		res.WriteHeader(http.StatusInternalServerError)
+		res.Write([]byte(err.Error()))
 		return
 	}
 	var k models.File
@@ -48,11 +49,11 @@ func GetHandler(p martini.Params, res http.ResponseWriter) {
 	if err != nil {
 		if err == r.ErrEmptyResult {
 			res.WriteHeader(http.StatusNotFound)
-			res.Write([]byte("Sorry, we couldn't find your meme"))
+			res.Write([]byte("Sorry, we couldn't find your file"))
 			return
 		}
-		res.WriteHeader(http.StatusBadRequest)
-		res.Write([]byte("NOP STILL TOO DANK"))
+		res.WriteHeader(http.StatusInternalServerError)
+		res.Write([]byte(err.Error()))
 		log.Println(err.Error())
 		return
 	}
@@ -73,8 +74,8 @@ func GetHandler(p martini.Params, res http.ResponseWriter) {
 	cur, err = r.Db(viper.GetString("DBName")).Table(viper.GetString("FilePieceTable")).Filter(map[string]interface{}{"ParentId": p["id"]}).OrderBy("Seq").Run(session)
 	if err != nil {
 		log.Println(err.Error())
-		res.WriteHeader(http.StatusBadRequest)
-		res.Write([]byte("still too dank"))
+		res.WriteHeader(http.StatusInternalServerError)
+		res.Write([]byte(err.Error()))
 	}
 	var result models.FilePiece
 	res.Header().Add("content-disposition", fmt.Sprintf(`inline; filename="%s"`, k.FileName))
