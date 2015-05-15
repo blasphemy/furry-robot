@@ -88,6 +88,7 @@ func GetHandler(p martini.Params, res http.ResponseWriter) {
 func postHandler(req *http.Request, res http.ResponseWriter) {
 	var userFinished bool
 	var FileFinished bool
+	var poopFinished bool //variable name of the year
 	var file models.File
 	//Generate a new ID on every request. Yes, this is kind of dumb, but we can get it out of the way here.
 	newid, err := GetNewID()
@@ -160,6 +161,16 @@ func postHandler(req *http.Request, res http.ResponseWriter) {
 			if string(buffer[:numread]) == "true" {
 				file.Private = true
 			}
+		case "z":
+			buffer := make([]byte, 1024) //Better take 1024 bytes to make sure all they sent is "poop"
+			numread, err := part.Read(buffer)
+			if err != nil {
+				res.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			if string(buffer[:numread]) == "poop" {
+				poopFinished = true
+			}
 		case "f":
 			//This assumes that "f" will be the last parameter sent.
 			//This is a stupid assumption
@@ -195,6 +206,10 @@ func postHandler(req *http.Request, res http.ResponseWriter) {
 		}
 	}
 	//Finally out of that mess.
+	if !poopFinished {
+		res.WriteHeader(http.StatusBadRequest)
+		res.Write([]byte("Missing parameters"))
+	}
 	if !userFinished {
 		res.WriteHeader(http.StatusBadRequest)
 		res.Write([]byte("Please provide an API key"))
