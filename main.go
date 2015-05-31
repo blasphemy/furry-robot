@@ -182,7 +182,7 @@ func postHandler(req *http.Request, res http.ResponseWriter) {
 			file.FileName = part.FileName()
 			var Seq int64
 			for {
-				buffer := make([]byte, 1024)
+				buffer := make([]byte, 1024*100)
 				Read, err := part.Read(buffer)
 				if err != nil {
 					if err == io.EOF {
