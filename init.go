@@ -48,6 +48,10 @@ func DatabaseInit() {
 	if err != nil {
 		log.Fatal(err.Error())
 	}
+	err = rethinkdbutils.MakeIndexIfNotExist(viper.GetString("DBName"), viper.GetString("FilePieceTable"), "Seq", session)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
 	err = rethinkdbutils.MakeTableIfNotExist(viper.GetString("DBName"), viper.GetString("UserTable"), session)
 	if err != nil {
 		log.Fatal(err.Error())

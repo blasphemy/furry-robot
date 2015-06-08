@@ -71,7 +71,7 @@ func GetHandler(p martini.Params, res http.ResponseWriter) {
 		log.Printf("Could not update timestamp for file %s: %s", k.Id, err.Error())
 	}
 	err = nil
-	cur, err = r.Db(viper.GetString("DBName")).Table(viper.GetString("FilePieceTable")).Filter(map[string]interface{}{"ParentId": p["id"]}).OrderBy("Seq").Run(session)
+	cur, err = r.Db(viper.GetString("DBName")).Table(viper.GetString("FilePieceTable")).OrderBy(r.OrderByOpts{Index: "Seq"}).Filter(map[string]interface{}{"ParentId": p["id"]}).Run(session)
 	if err != nil {
 		log.Println(err.Error())
 		res.WriteHeader(http.StatusInternalServerError)
