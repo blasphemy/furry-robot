@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"github.com/blasphemy/furry-robot/models"
 	"github.com/blasphemy/furry-robot/utils"
-	r "github.com/dancannon/gorethink"
 	"github.com/go-martini/martini"
 	"github.com/spf13/viper"
+	r "gopkg.in/dancannon/gorethink.v1"
 	"io"
 	"log"
 	"net/http"
@@ -38,7 +38,7 @@ func main() {
 }
 
 func GetHandler(p martini.Params, res http.ResponseWriter) {
-	cur, err := r.Db(viper.GetString("DBName")).Table(viper.GetString("FileTable")).Get(p["id"]).Run(session)
+	cur, err := r.DB(viper.GetString("DBName")).Table(viper.GetString("FileTable")).Get(p["id"]).Run(session)
 	if err != nil {
 		res.WriteHeader(http.StatusInternalServerError)
 		res.Write([]byte(err.Error()))
@@ -66,12 +66,12 @@ func GetHandler(p martini.Params, res http.ResponseWriter) {
 	log.Printf("Updating timestamp for file %s", k.Id)
 	k.LastAccessed = time.Now()
 	k.Hits++
-	err = r.Db(viper.GetString("DBName")).Table(viper.GetString("FileTable")).Get(p["id"]).Update(&k).Exec(session)
+	err = r.DB(viper.GetString("DBName")).Table(viper.GetString("FileTable")).Get(p["id"]).Update(&k).Exec(session)
 	if err != nil {
 		log.Printf("Could not update timestamp for file %s: %s", k.Id, err.Error())
 	}
 	err = nil
-	cur, err = r.Db(viper.GetString("DBName")).Table(viper.GetString("FilePieceTable")).OrderBy(r.OrderByOpts{Index: "Seq"}).Filter(map[string]interface{}{"ParentId": p["id"]}).Run(session)
+	cur, err = r.DB(viper.GetString("DBName")).Table(viper.GetString("FilePieceTable")).OrderBy(r.OrderByOpts{Index: "Seq"}).Filter(map[string]interface{}{"ParentId": p["id"]}).Run(session)
 	if err != nil {
 		log.Println(err.Error())
 		res.WriteHeader(http.StatusInternalServerError)
@@ -195,11 +195,11 @@ func postHandler(req *http.Request, res http.ResponseWriter) {
 				}
 				file.FileSize = file.FileSize + int64(Read)
 				f := models.FilePiece{Data: buffer[:Read], Seq: Seq, ParentId: file.Id}
-				err = r.Db(viper.GetString("DBName")).Table(viper.GetString("FilePieceTable")).Insert(&f).Exec(session)
+				err = r.DB(viper.GetString("DBName")).Table(viper.GetString("FilePieceTable")).Insert(&f).Exec(session)
 				if err != nil {
 					res.WriteHeader(http.StatusInternalServerError)
 					res.Write([]byte(err.Error()))
-					r.Db(viper.GetString("DBName")).Table(viper.GetString("FilePieceTable")).Filter(map[string]interface{}{"ParentId": file.Id}).Delete().Exec(session)
+					r.DB(viper.GetString("DBName")).Table(viper.GetString("FilePieceTable")).Filter(map[string]interface{}{"ParentId": file.Id}).Delete().Exec(session)
 					return
 				}
 				Seq++
@@ -222,14 +222,14 @@ func postHandler(req *http.Request, res http.ResponseWriter) {
 		return
 	}
 	file.AccessKey = utils.Base62Rand(viper.GetInt("AccessKeyLength"))
-	err = r.Db(viper.GetString("DBName")).Table(viper.GetString("FileTable")).Insert(&file).Exec(session)
+	err = r.DB(viper.GetString("DBName")).Table(viper.GetString("FileTable")).Insert(&file).Exec(session)
 	if err != nil {
 		res.WriteHeader(http.StatusInternalServerError)
 		res.Write([]byte(err.Error()))
 		log.Println("Error inserting file. Attempting to roll back")
 		log.Println(err.Error())
 		err = nil
-		err = r.Db(viper.GetString("DBName")).Table(viper.GetString("FilePieceTable")).Filter(map[string]interface{}{"ParentId": file.Id}).Delete().Exec(session)
+		err = r.DB(viper.GetString("DBName")).Table(viper.GetString("FilePieceTable")).Filter(map[string]interface{}{"ParentId": file.Id}).Delete().Exec(session)
 		if err != nil {
 			log.Println("Error rolling back. Nothing to do here.")
 			log.Println(err.Error())
@@ -240,19 +240,19 @@ func postHandler(req *http.Request, res http.ResponseWriter) {
 }
 
 func GetNewID() (string, error) {
-	err := r.Db(viper.GetString("DBName")).Table(viper.GetString("MetaTable")).Get("counter").Update(map[string]interface{}{"value": r.Row.Field("value").Add(1)}).Exec(session)
+	err := r.DB(viper.GetString("DBName")).Table(viper.GetString("MetaTable")).Get("counter").Update(map[string]interface{}{"value": r.Row.Field("value").Add(1)}).Exec(session)
 	if err != nil {
 		log.Println(err.Error())
 		return "", err
 	}
-	cursor, err := r.Db(viper.GetString("DBName")).Table(viper.GetString("MetaTable")).Get("counter").Field("value").Run(session)
+	cursor, err := r.DB(viper.GetString("DBName")).Table(viper.GetString("MetaTable")).Get("counter").Field("value").Run(session)
 	if err != nil {
-		err := r.Db(viper.GetString("DBName")).Table(viper.GetString("MetaTable")).Get("counter").Exec(session)
+		err := r.DB(viper.GetString("DBName")).Table(viper.GetString("MetaTable")).Get("counter").Exec(session)
 		if err != r.ErrEmptyResult && err != nil {
 			log.Println(err.Error())
 			return "", err
 		}
-		err2 := r.Db(viper.GetString("DBName")).Table(viper.GetString("MetaTable")).Insert(map[string]interface{}{"id": "counter", "value": 0}).Exec(session)
+		err2 := r.DB(viper.GetString("DBName")).Table(viper.GetString("MetaTable")).Insert(map[string]interface{}{"id": "counter", "value": 0}).Exec(session)
 		if err2 != nil {
 			return "", err
 		}

@@ -3,9 +3,9 @@ package main
 import (
 	"errors"
 	"github.com/blasphemy/furry-robot/models"
-	r "github.com/dancannon/gorethink"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	r "gopkg.in/dancannon/gorethink.v1"
 	"log"
 	"time"
 )
@@ -32,7 +32,7 @@ var AddUser = &cobra.Command{
 		NewUser.ApiKey = uuid
 		NewUser.Epoch = time.Now()
 		NewUser.LastActivity = time.Now()
-		err = r.Db(viper.GetString("DBName")).Table(viper.GetString("UserTable")).Insert(NewUser).Exec(session)
+		err = r.DB(viper.GetString("DBName")).Table(viper.GetString("UserTable")).Insert(NewUser).Exec(session)
 		if err != nil {
 			log.Fatal(err.Error())
 		}
@@ -108,7 +108,7 @@ func RunDataBaseMigrations() {
 
 func FileSizeMigration() error {
 	log.Println("Beginning migration to add file sizes")
-	cur, err := r.Db(viper.GetString("DBName")).Table(viper.GetString("FileTable")).Run(session)
+	cur, err := r.DB(viper.GetString("DBName")).Table(viper.GetString("FileTable")).Run(session)
 	if err != nil {
 		return err
 	}
@@ -117,7 +117,7 @@ func FileSizeMigration() error {
 	for cur.Next(result) {
 		if result.FileSize == 0 {
 			var ByteCounter int64
-			cur2, err := r.Db(viper.GetString("DBName")).Table(viper.GetString("FilePieceTable")).Filter(map[string]interface{}{"ParentId": result.Id}).Run(session)
+			cur2, err := r.DB(viper.GetString("DBName")).Table(viper.GetString("FilePieceTable")).Filter(map[string]interface{}{"ParentId": result.Id}).Run(session)
 			if err != nil {
 				return err
 			}
@@ -127,7 +127,7 @@ func FileSizeMigration() error {
 			}
 			log.Printf("File %s size: %d", result.Id, ByteCounter)
 			result.FileSize = ByteCounter
-			err = r.Db(viper.GetString("DBName")).Table(viper.GetString("FileTable")).Update(result).Exec(session)
+			err = r.DB(viper.GetString("DBName")).Table(viper.GetString("FileTable")).Update(result).Exec(session)
 			if err != nil {
 				return err
 			}

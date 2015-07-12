@@ -1,7 +1,7 @@
 package models
 
 import (
-	r "github.com/dancannon/gorethink"
+	r "gopkg.in/dancannon/gorethink.v1"
 	"time"
 )
 
@@ -42,7 +42,7 @@ func (f File) GetUrl(BaseUrl string) string {
 
 func (user *User) UpdateLastActivity(session *r.Session, Database string, Table string) error {
 	user.LastActivity = time.Now()
-	err := r.Db(Database).Table(Table).Update(user).Exec(session)
+	err := r.DB(Database).Table(Table).Update(user).Exec(session)
 	if err != nil {
 		return err
 	}
@@ -55,7 +55,7 @@ func GetUserByApiKey(ApiKey string, session *r.Session, Dbname string, Tablename
 		result.Active = true
 		return result, nil
 	}
-	cur, err := r.Db(Dbname).Table(Tablename).Filter(map[string]interface{}{"ApiKey": ApiKey}).Run(session)
+	cur, err := r.DB(Dbname).Table(Tablename).Filter(map[string]interface{}{"ApiKey": ApiKey}).Run(session)
 	if err != nil {
 		return result, err
 	}
