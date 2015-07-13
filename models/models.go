@@ -2,6 +2,7 @@ package models
 
 import (
 	r "gopkg.in/dancannon/gorethink.v1"
+	"strings"
 	"time"
 )
 
@@ -34,6 +35,9 @@ type FilePiece struct {
 }
 
 func (f File) GetUrl(BaseUrl string) string {
+	if !strings.HasSuffix(BaseUrl, "/") {
+		BaseUrl = BaseUrl + "/"
+	}
 	if f.Private {
 		return BaseUrl + f.Id + "/" + f.AccessKey
 	}
