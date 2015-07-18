@@ -20,7 +20,8 @@ func main() {
 	ConfigInit()
 	var err error
 	session, err = r.Connect(r.ConnectOpts{
-		Address: viper.GetString("RethinkDbConnectionString"),
+		Address:  viper.GetString("RethinkDbConnectionString"),
+		Database: viper.GetString("DBName"),
 	})
 	if err != nil {
 		log.Println("Error connecting to database")
@@ -35,10 +36,11 @@ func main() {
 	m.Get("/:id", GetHandler)
 	m.Post("/api/up", postHandler)
 	m.Run()
+	//m.RunOnAddr("127.0.0.1:3001")
 }
 
 func GetHandler(p martini.Params, res http.ResponseWriter) {
-	cur, err := r.DB(viper.GetString("DBName")).Table(viper.GetString("FileTable")).Get(p["id"]).Run(session)
+	cur, err := r.Table(viper.GetString("FileTable")).Get(p["id"]).Run(session)
 	if err != nil {
 		res.WriteHeader(http.StatusInternalServerError)
 		res.Write([]byte(err.Error()))
@@ -66,12 +68,12 @@ func GetHandler(p martini.Params, res http.ResponseWriter) {
 	log.Printf("Updating timestamp for file %s", k.Id)
 	k.LastAccessed = time.Now()
 	k.Hits++
-	err = r.DB(viper.GetString("DBName")).Table(viper.GetString("FileTable")).Get(p["id"]).Update(&k).Exec(session)
+	err = r.Table(viper.GetString("FileTable")).Get(p["id"]).Update(&k).Exec(session)
 	if err != nil {
 		log.Printf("Could not update timestamp for file %s: %s", k.Id, err.Error())
 	}
 	err = nil
-	cur, err = r.DB(viper.GetString("DBName")).Table(viper.GetString("FilePieceTable")).OrderBy(r.OrderByOpts{Index: "Seq"}).Filter(map[string]interface{}{"ParentId": p["id"]}).Run(session)
+	cur, err = r.Table(viper.GetString("FilePieceTable")).OrderBy(r.OrderByOpts{Index: "Seq"}).Filter(map[string]interface{}{"ParentId": p["id"]}).Run(session)
 	if err != nil {
 		log.Println(err.Error())
 		res.WriteHeader(http.StatusInternalServerError)
@@ -138,14 +140,14 @@ func postHandler(req *http.Request, res http.ResponseWriter) {
 			}
 			apikey = string(buffer[:numread])
 			log.Printf("User Api key: %s", apikey)
-			user, err = models.GetUserByApiKey(apikey, session, viper.GetString("DBName"), viper.GetString("UserTable"), viper.GetBool("Debug"))
+			user, err = models.GetUserByApiKey(apikey, session, viper.GetString("UserTable"), viper.GetBool("Debug"))
 			if !user.Active {
 				res.WriteHeader(http.StatusUnauthorized)
 				res.Write([]byte("You are not authorized to upload"))
 				return
 			}
 			log.Printf("Updating user %s last activity.", user.Email)
-			err = user.UpdateLastActivity(session, viper.GetString("DBName"), viper.GetString("UserTable"))
+			err = user.UpdateLastActivity(session, viper.GetString("UserTable"))
 			if err != nil {
 				log.Println(err.Error())
 				err = nil //Not fatal
@@ -195,11 +197,11 @@ func postHandler(req *http.Request, res http.ResponseWriter) {
 				}
 				file.FileSize = file.FileSize + int64(Read)
 				f := models.FilePiece{Data: buffer[:Read], Seq: Seq, ParentId: file.Id}
-				err = r.DB(viper.GetString("DBName")).Table(viper.GetString("FilePieceTable")).Insert(&f).Exec(session)
+				err = r.Table(viper.GetString("FilePieceTable")).Insert(&f).Exec(session)
 				if err != nil {
 					res.WriteHeader(http.StatusInternalServerError)
 					res.Write([]byte(err.Error()))
-					r.DB(viper.GetString("DBName")).Table(viper.GetString("FilePieceTable")).Filter(map[string]interface{}{"ParentId": file.Id}).Delete().Exec(session)
+					r.Table(viper.GetString("FilePieceTable")).Filter(map[string]interface{}{"ParentId": file.Id}).Delete().Exec(session)
 					return
 				}
 				Seq++
@@ -222,14 +224,14 @@ func postHandler(req *http.Request, res http.ResponseWriter) {
 		return
 	}
 	file.AccessKey = utils.Base62Rand(viper.GetInt("AccessKeyLength"))
-	err = r.DB(viper.GetString("DBName")).Table(viper.GetString("FileTable")).Insert(&file).Exec(session)
+	err = r.Table(viper.GetString("FileTable")).Insert(&file).Exec(session)
 	if err != nil {
 		res.WriteHeader(http.StatusInternalServerError)
 		res.Write([]byte(err.Error()))
 		log.Println("Error inserting file. Attempting to roll back")
 		log.Println(err.Error())
 		err = nil
-		err = r.DB(viper.GetString("DBName")).Table(viper.GetString("FilePieceTable")).Filter(map[string]interface{}{"ParentId": file.Id}).Delete().Exec(session)
+		err = r.Table(viper.GetString("FilePieceTable")).Filter(map[string]interface{}{"ParentId": file.Id}).Delete().Exec(session)
 		if err != nil {
 			log.Println("Error rolling back. Nothing to do here.")
 			log.Println(err.Error())
@@ -240,19 +242,19 @@ func postHandler(req *http.Request, res http.ResponseWriter) {
 }
 
 func GetNewID() (string, error) {
-	err := r.DB(viper.GetString("DBName")).Table(viper.GetString("MetaTable")).Get("counter").Update(map[string]interface{}{"value": r.Row.Field("value").Add(1)}).Exec(session)
+	err := r.Table(viper.GetString("MetaTable")).Get("counter").Update(map[string]interface{}{"value": r.Row.Field("value").Add(1)}).Exec(session)
 	if err != nil {
 		log.Println(err.Error())
 		return "", err
 	}
-	cursor, err := r.DB(viper.GetString("DBName")).Table(viper.GetString("MetaTable")).Get("counter").Field("value").Run(session)
+	cursor, err := r.Table(viper.GetString("MetaTable")).Get("counter").Field("value").Run(session)
 	if err != nil {
-		err := r.DB(viper.GetString("DBName")).Table(viper.GetString("MetaTable")).Get("counter").Exec(session)
+		err := r.Table(viper.GetString("MetaTable")).Get("counter").Exec(session)
 		if err != r.ErrEmptyResult && err != nil {
 			log.Println(err.Error())
 			return "", err
 		}
-		err2 := r.DB(viper.GetString("DBName")).Table(viper.GetString("MetaTable")).Insert(map[string]interface{}{"id": "counter", "value": 0}).Exec(session)
+		err2 := r.Table(viper.GetString("MetaTable")).Insert(map[string]interface{}{"id": "counter", "value": 0}).Exec(session)
 		if err2 != nil {
 			return "", err
 		}

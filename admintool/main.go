@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/viper"
 	r "gopkg.in/dancannon/gorethink.v1"
 	"log"
+	"net/http"
 	"time"
 )
 
@@ -67,7 +68,7 @@ func main() {
 func ConfigInit() {
 	viper.SetConfigName("furryrobot")
 	viper.AddConfigPath("../")
-	viper.SetDefault("RethinkDbConnectionString", "127.0.0.1:28015")
+	viper.SetDefault("RethinkDbConnectionString", "192.168.1.100:28015")
 	viper.SetDefault("DBName", "FurryRobot")
 	viper.SetDefault("FileTable", "Files")
 	viper.SetDefault("FilePieceTable", "FilePieces")
@@ -104,6 +105,10 @@ func RunDataBaseMigrations() {
 	if err != nil {
 		log.Fatal(err.Error())
 	}
+	err = MimeTypeMigration()
+	if err != nil {
+		log.Fatal(err.Error())
+	}
 }
 
 func FileSizeMigration() error {
@@ -127,6 +132,37 @@ func FileSizeMigration() error {
 			}
 			log.Printf("File %s size: %d", result.Id, ByteCounter)
 			result.FileSize = ByteCounter
+			err = r.DB(viper.GetString("DBName")).Table(viper.GetString("FileTable")).Update(result).Exec(session)
+			if err != nil {
+				return err
+			}
+			counter++
+		}
+	}
+	log.Printf("Updated %d files", counter)
+	return nil
+}
+
+func MimeTypeMigration() error {
+	log.Println("Beginning migration to add mime types")
+	cur, err := r.DB(viper.GetString("DBName")).Table(viper.GetString("FileTable")).Run(session)
+	if err != nil {
+		return err
+	}
+	counter := 0
+	result := &models.File{}
+	for cur.Next(result) {
+		if result.MimeType == "" {
+			cur2, err := r.DB(viper.GetString("DBName")).Table(viper.GetString("FilePieceTable")).Filter(map[string]interface{}{"ParentId": result.Id, "Seq": 0}).Run(session)
+			if err != nil {
+				return err
+			}
+			res2 := &models.FilePiece{}
+			err = cur2.One(res2)
+			if err != nil {
+				return err
+			}
+			result.MimeType = http.DetectContentType(res2.Data)
 			err = r.DB(viper.GetString("DBName")).Table(viper.GetString("FileTable")).Update(result).Exec(session)
 			if err != nil {
 				return err

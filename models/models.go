@@ -26,6 +26,7 @@ type File struct {
 	LastAccessed time.Time
 	Hits         int
 	FileSize     int64
+	MimeType     string
 }
 
 type FilePiece struct {
@@ -44,22 +45,22 @@ func (f File) GetUrl(BaseUrl string) string {
 	return BaseUrl + f.Id
 }
 
-func (user *User) UpdateLastActivity(session *r.Session, Database string, Table string) error {
+func (user *User) UpdateLastActivity(session *r.Session, Table string) error {
 	user.LastActivity = time.Now()
-	err := r.DB(Database).Table(Table).Update(user).Exec(session)
+	err := r.Table(Table).Update(user).Exec(session)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func GetUserByApiKey(ApiKey string, session *r.Session, Dbname string, Tablename string, debug bool) (User, error) {
+func GetUserByApiKey(ApiKey string, session *r.Session, Tablename string, debug bool) (User, error) {
 	var result User
 	if debug {
 		result.Active = true
 		return result, nil
 	}
-	cur, err := r.DB(Dbname).Table(Tablename).Filter(map[string]interface{}{"ApiKey": ApiKey}).Run(session)
+	cur, err := r.Table(Tablename).Filter(map[string]interface{}{"ApiKey": ApiKey}).Run(session)
 	if err != nil {
 		return result, err
 	}

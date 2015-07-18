@@ -9,7 +9,7 @@ import (
 func ConfigInit() {
 	viper.SetConfigName("furryrobot")
 	viper.AddConfigPath(".")
-	viper.SetDefault("RethinkDbConnectionString", "127.0.0.1:28015")
+	viper.SetDefault("RethinkDbConnectionString", "192.168.1.100:28015")
 	viper.SetDefault("DBName", "FurryRobot")
 	viper.SetDefault("FileTable", "Files")
 	viper.SetDefault("FilePieceTable", "FilePieces")
