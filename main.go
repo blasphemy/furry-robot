@@ -197,6 +197,9 @@ func postHandler(req *http.Request, res http.ResponseWriter) {
 				}
 				file.FileSize = file.FileSize + int64(Read)
 				f := models.FilePiece{Data: buffer[:Read], Seq: Seq, ParentId: file.Id}
+				if Seq == 0 {
+					file.MimeType = http.DetectContentType(f.Data)
+				}
 				err = r.Table(viper.GetString("FilePieceTable")).Insert(&f).Exec(session)
 				if err != nil {
 					res.WriteHeader(http.StatusInternalServerError)
